@@ -1,0 +1,653 @@
+{
+  "scenario": {
+    "name": "Barbearia - Sistema de Agendamento Automatizado",
+    "description": "Automação completa para gerenciar agendamentos de barbearia via WhatsApp",
+    "version": "1.0.0",
+    "created_by": "Sistema de Agendamento para Barbeiros",
+    "modules": [
+      {
+        "id": "webhook_trigger",
+        "name": "Webhook - Mensagem Recebida",
+        "type": "webhook",
+        "description": "Recebe mensagens do WhatsApp via webhook",
+        "config": {
+          "url": "{{SUPERAGENTES_WEBHOOK_URL}}/whatsapp/message",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer {{SUPERAGENTES_API_KEY}}"
+          }
+        }
+      },
+      {
+        "id": "message_parser",
+        "name": "Parser de Mensagem",
+        "type": "code",
+        "description": "Extrai informações da mensagem recebida",
+        "code": "javascript",
+        "script": `
+          // Extrai dados da mensagem
+          const messageData = data.body;
+          
+          const parsed = {
+            phone_number: messageData.from,
+            message_text: messageData.text?.body || '',
+            message_type: messageData.type,
+            timestamp: messageData.timestamp,
+            conversation_id: messageData.id
+          };
+          
+          // Identifica intenção da mensagem
+          const text = parsed.message_text.toLowerCase();
+          
+          if (text.includes('agendar') || text.includes('marcar') || text.includes('horário')) {
+            parsed.intent = 'schedule_appointment';
+          } else if (text.includes('verificar') || text.includes('disponível') || text.includes('horários')) {
+            parsed.intent = 'check_availability';
+          } else if (text.includes('cancelar') || text.includes('cancelamento')) {
+            parsed.intent = 'cancel_appointment';
+          } else if (text.includes('remarcar') || text.includes('mudar') || text.includes('alterar')) {
+            parsed.intent = 'reschedule_appointment';
+          } else if (text.includes('ajuda') || text.includes('help')) {
+            parsed.intent = 'help';
+          } else {
+            parsed.intent = 'unknown';
+          }
+          
+          return parsed;
+        `
+      },
+      {
+        "id": "intent_router",
+        "name": "Roteador de Intenções",
+        "type": "router",
+        "description": "Direciona para o fluxo correto baseado na intenção",
+        "routes": [
+          {
+            "condition": "{{intent}} == 'schedule_appointment'",
+            "target": "schedule_flow"
+          },
+          {
+            "condition": "{{intent}} == 'check_availability'",
+            "target": "availability_flow"
+          },
+          {
+            "condition": "{{intent}} == 'cancel_appointment'",
+            "target": "cancellation_flow"
+          },
+          {
+            "condition": "{{intent}} == 'reschedule_appointment'",
+            "target": "reschedule_flow"
+          },
+          {
+            "condition": "{{intent}} == 'help'",
+            "target": "help_flow"
+          },
+          {
+            "condition": "default",
+            "target": "unknown_intent_flow"
+          }
+        ]
+      },
+      {
+        "id": "schedule_flow",
+        "name": "Fluxo de Agendamento",
+        "type": "sequence",
+        "description": "Processa criação de novo agendamento",
+        "steps": [
+          {
+            "id": "extract_date",
+            "name": "Extrair Data",
+            "type": "code",
+            "script": `
+              // Extrai data da mensagem
+              const text = data.message_text;
+              let extractedDate = null;
+              
+              // Padrões de data
+              const patterns = [
+                /(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})/,
+                /(\\d{1,2})-(\\d{1,2})-(\\d{4})/,
+                /(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4})/
+              ];
+              
+              for (const pattern of patterns) {
+                const match = text.match(pattern);
+                if (match) {
+                  const [, day, month, year] = match;
+                  extractedDate = new Date(year, month - 1, day);
+                  break;
+                }
+              }
+              
+              // Casos especiais
+              if (text.includes('amanhã')) {
+                extractedDate = new Date();
+                extractedDate.setDate(extractedDate.getDate() + 1);
+              } else if (text.includes('hoje')) {
+                extractedDate = new Date();
+              }
+              
+              return {
+                extracted_date: extractedDate,
+                original_text: text
+              };
+            `
+          },
+          {
+            "id": "validate_date",
+            "name": "Validar Data",
+            "type": "code",
+            "script": `
+              const date = data.extracted_date;
+              const today = new Date();
+              const maxDate = new Date();
+              maxDate.setDate(today.getDate() + 30); // Máximo 30 dias
+              
+              if (!date) {
+                return {
+                  valid: false,
+                  error: 'Data não reconhecida',
+                  message: '📅 Não consegui entender a data. Pode informar no formato DD/MM/AAAA ou "amanhã"?'
+                };
+              }
+              
+              if (date < today) {
+                return {
+                  valid: false,
+                  error: 'Data no passado',
+                  message: '📅 Não é possível agendar para datas passadas. Pode escolher uma data futura?'
+                };
+              }
+              
+              if (date > maxDate) {
+                return {
+                  valid: false,
+                  error: 'Data muito distante',
+                  message: '📅 Só aceitamos agendamentos com até 30 dias de antecedência. Pode escolher uma data mais próxima?'
+                };
+              }
+              
+              return {
+                valid: true,
+                date: date,
+                message: '📅 Perfeito! Agora preciso saber o horário desejado.'
+              };
+            `
+          },
+          {
+            "id": "check_availability",
+            "name": "Verificar Disponibilidade",
+            "type": "http_request",
+            "config": {
+              "url": "{{API_BASE_URL}}/availability/{{date}}",
+              "method": "GET",
+              "headers": {
+                "Authorization": "Bearer {{API_TOKEN}}"
+              }
+            }
+          },
+          {
+            "id": "send_available_times",
+            "name": "Enviar Horários Disponíveis",
+            "type": "whatsapp",
+            "config": {
+              "phone_number": "{{phone_number}}",
+              "message": "🕐 Horários disponíveis para {{date}}:\n\n{{available_times}}\n\nEscolha um horário ou digite o horário desejado (ex: 14:30).",
+              "quick_replies": [
+                {
+                  "id": "time_0800",
+                  "title": "08:00"
+                },
+                {
+                  "id": "time_0830",
+                  "title": "08:30"
+                },
+                {
+                  "id": "time_0900",
+                  "title": "09:00"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "availability_flow",
+        "name": "Fluxo de Verificação de Disponibilidade",
+        "type": "sequence",
+        "description": "Processa verificação de horários disponíveis",
+        "steps": [
+          {
+            "id": "extract_date_availability",
+            "name": "Extrair Data para Verificação",
+            "type": "code",
+            "script": `
+              // Similar ao extract_date, mas para verificação
+              const text = data.message_text;
+              let extractedDate = null;
+              
+              // Padrões de data
+              const patterns = [
+                /(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})/,
+                /(\\d{1,2})-(\\d{1,2})-(\\d{4})/,
+                /(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4})/
+              ];
+              
+              for (const pattern of patterns) {
+                const match = text.match(pattern);
+                if (match) {
+                  const [, day, month, year] = match;
+                  extractedDate = new Date(year, month - 1, day);
+                  break;
+                }
+              }
+              
+              // Casos especiais
+              if (text.includes('amanhã')) {
+                extractedDate = new Date();
+                extractedDate.setDate(extractedDate.getDate() + 1);
+              } else if (text.includes('hoje')) {
+                extractedDate = new Date();
+              }
+              
+              return {
+                extracted_date: extractedDate,
+                original_text: text
+              };
+            `
+          },
+          {
+            "id": "get_availability",
+            "name": "Buscar Disponibilidade",
+            "type": "http_request",
+            "config": {
+              "url": "{{API_BASE_URL}}/availability/{{extracted_date}}",
+              "method": "GET",
+              "headers": {
+                "Authorization": "Bearer {{API_TOKEN}}"
+              }
+            }
+          },
+          {
+            "id": "format_availability_response",
+            "name": "Formatar Resposta de Disponibilidade",
+            "type": "code",
+            "script": `
+              const availability = data.available_slots;
+              const date = data.extracted_date;
+              
+              if (!availability || availability.length === 0) {
+                return {
+                  message: `😔 Não há horários disponíveis para ${date.toLocaleDateString('pt-BR')}. Gostaria de ver outras datas?`,
+                  has_availability: false
+                };
+              }
+              
+              // Formata horários disponíveis
+              let timeList = '';
+              for (let i = 0; i < Math.min(availability.length, 10); i++) {
+                const time = availability[i].time;
+                timeList += `${i + 1}. ${time}\\n`;
+              }
+              
+              if (availability.length > 10) {
+                timeList += `\\n... e mais ${availability.length - 10} horários disponíveis.`;
+              }
+              
+              return {
+                message: `🕐 Horários disponíveis para ${date.toLocaleDateString('pt-BR')}:\\n\\n${timeList}`,
+                has_availability: true,
+                available_slots: availability
+              };
+            `
+          },
+          {
+            "id": "send_availability_response",
+            "name": "Enviar Resposta de Disponibilidade",
+            "type": "whatsapp",
+            "config": {
+              "phone_number": "{{phone_number}}",
+              "message": "{{message}}"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cancellation_flow",
+        "name": "Fluxo de Cancelamento",
+        "type": "sequence",
+        "description": "Processa cancelamento de agendamento",
+        "steps": [
+          {
+            "id": "extract_phone",
+            "name": "Extrair Número de Telefone",
+            "type": "code",
+            "script": `
+              // Extrai número de telefone da mensagem
+              const text = data.message_text;
+              const phoneMatch = text.match(/(\\d{10,})/);
+              
+              if (phoneMatch) {
+                return {
+                  phone_number: phoneMatch[1],
+                  extracted: true
+                };
+              }
+              
+              return {
+                extracted: false,
+                message: '📱 Preciso do seu número de telefone para localizar o agendamento. Pode informar novamente?'
+              };
+            `
+          },
+          {
+            "id": "find_appointments",
+            "name": "Buscar Agendamentos",
+            "type": "http_request",
+            "config": {
+              "url": "{{API_BASE_URL}}/appointments/client/{{phone_number}}",
+              "method": "GET",
+              "headers": {
+                "Authorization": "Bearer {{API_TOKEN}}"
+              }
+            }
+          },
+          {
+            "id": "process_cancellation",
+            "name": "Processar Cancelamento",
+            "type": "code",
+            "script": `
+              const appointments = data.appointments;
+              
+              if (!appointments || appointments.length === 0) {
+                return {
+                  message: '😔 Não encontrei agendamentos para este número. Pode verificar se o número está correto?',
+                  success: false
+                };
+              }
+              
+              if (appointments.length === 1) {
+                const apt = appointments[0];
+                return {
+                  message: `❌ Encontrei seu agendamento para ${apt.date} às ${apt.time}. Confirma o cancelamento?`,
+                  success: true,
+                  appointment_id: apt.id,
+                  single_appointment: true
+                };
+              }
+              
+              // Múltiplos agendamentos
+              let appointmentsList = '📋 Encontrei os seguintes agendamentos:\\n\\n';
+              for (let i = 0; i < appointments.length; i++) {
+                const apt = appointments[i];
+                appointmentsList += `${i + 1}. ${apt.date} às ${apt.time}\\n`;
+              }
+              
+              appointmentsList += '\\nQual você gostaria de cancelar? Responda com o número.';
+              
+              return {
+                message: appointmentsList,
+                success: true,
+                multiple_appointments: true,
+                appointments: appointments
+              };
+            `
+          },
+          {
+            "id": "send_cancellation_response",
+            "name": "Enviar Resposta de Cancelamento",
+            "type": "whatsapp",
+            "config": {
+              "phone_number": "{{phone_number}}",
+              "message": "{{message}}"
+            }
+          }
+        ]
+      },
+      {
+        "id": "reschedule_flow",
+        "name": "Fluxo de Remarcação",
+        "type": "sequence",
+        "description": "Processa remarcação de agendamento",
+        "steps": [
+          {
+            "id": "extract_phone_reschedule",
+            "name": "Extrair Número de Telefone para Remarcação",
+            "type": "code",
+            "script": `
+              // Similar ao extract_phone, mas para remarcação
+              const text = data.message_text;
+              const phoneMatch = text.match(/(\\d{10,})/);
+              
+              if (phoneMatch) {
+                return {
+                  phone_number: phoneMatch[1],
+                  extracted: true
+                };
+              }
+              
+              return {
+                extracted: false,
+                message: '📱 Preciso do seu número de telefone para localizar o agendamento. Pode informar novamente?'
+              };
+            `
+          },
+          {
+            "id": "find_appointments_reschedule",
+            "name": "Buscar Agendamentos para Remarcação",
+            "type": "http_request",
+            "config": {
+              "url": "{{API_BASE_URL}}/appointments/client/{{phone_number}}",
+              "method": "GET",
+              "headers": {
+                "Authorization": "Bearer {{API_TOKEN}}"
+              }
+            }
+          },
+          {
+            "id": "initiate_reschedule",
+            "name": "Iniciar Processo de Remarcação",
+            "type": "code",
+            "script": `
+              const appointments = data.appointments;
+              
+              if (!appointments || appointments.length === 0) {
+                return {
+                  message: '😔 Não encontrei agendamentos para este número. Pode verificar se o número está correto?',
+                  success: false
+                };
+              }
+              
+              if (appointments.length === 1) {
+                const apt = appointments[0];
+                return {
+                  message: `🔄 Encontrei seu agendamento para ${apt.date} às ${apt.time}! Para qual nova data você gostaria de remarcar?`,
+                  success: true,
+                  appointment_id: apt.id,
+                  single_appointment: true
+                };
+              }
+              
+              // Múltiplos agendamentos
+              let appointmentsList = '📋 Encontrei os seguintes agendamentos:\\n\\n';
+              for (let i = 0; i < appointments.length; i++) {
+                const apt = appointments[i];
+                appointmentsList += `${i + 1}. ${apt.date} às ${apt.time}\\n`;
+              }
+              
+              appointmentsList += '\\nQual você gostaria de remarcar? Responda com o número.';
+              
+              return {
+                message: appointmentsList,
+                success: true,
+                multiple_appointments: true,
+                appointments: appointments
+              };
+            `
+          },
+          {
+            "id": "send_reschedule_response",
+            "name": "Enviar Resposta de Remarcação",
+            "type": "whatsapp",
+            "config": {
+              "phone_number": "{{phone_number}}",
+              "message": "{{message}}"
+            }
+          }
+        ]
+      },
+      {
+        "id": "help_flow",
+        "name": "Fluxo de Ajuda",
+        "type": "sequence",
+        "description": "Fornece ajuda e informações",
+        "steps": [
+          {
+            "id": "send_help_message",
+            "name": "Enviar Mensagem de Ajuda",
+            "type": "whatsapp",
+            "config": {
+              "phone_number": "{{phone_number}}",
+              "message": "💡 Posso ajudá-lo com:\\n\\n• 📅 Agendamento\\n• 🔍 Verificar disponibilidade\\n• ❌ Cancelar agendamento\\n• 🔄 Remarcar horário\\n• 📱 Confirmação de presença\\n\\nComo posso ajudá-lo hoje?",
+              "quick_replies": [
+                {
+                  "id": "schedule",
+                  "title": "📅 Fazer Agendamento"
+                },
+                {
+                  "id": "check",
+                  "title": "🔍 Verificar Horários"
+                },
+                {
+                  "id": "cancel",
+                  "title": "❌ Cancelar Agendamento"
+                },
+                {
+                  "id": "reschedule",
+                  "title": "🔄 Remarcar Horário"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "unknown_intent_flow",
+        "name": "Fluxo de Intenção Desconhecida",
+        "type": "sequence",
+        "description": "Processa mensagens com intenção não reconhecida",
+        "steps": [
+          {
+            "id": "send_clarification",
+            "name": "Enviar Pedido de Esclarecimento",
+            "type": "whatsapp",
+            "config": {
+              "phone_number": "{{phone_number}}",
+              "message": "🤔 Não entendi exatamente o que você precisa. Pode ser mais específico?\\n\\nPosso ajudá-lo com:\\n• Agendamento\\n• Verificar horários\\n• Cancelar agendamento\\n• Remarcar horário\\n• Ajuda",
+              "quick_replies": [
+                {
+                  "id": "schedule",
+                  "title": "📅 Fazer Agendamento"
+                },
+                {
+                  "id": "check",
+                  "title": "🔍 Verificar Horários"
+                },
+                {
+                  "id": "help",
+                  "title": "❓ Ajuda"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "notification_scheduler",
+        "name": "Agendador de Notificações",
+        "type": "scheduler",
+        "description": "Envia lembretes automáticos",
+        "config": {
+          "frequency": "daily",
+          "time": "09:00",
+          "timezone": "America/Sao_Paulo"
+        },
+        "steps": [
+          {
+            "id": "get_upcoming_appointments",
+            "name": "Buscar Agendamentos Próximos",
+            "type": "http_request",
+            "config": {
+              "url": "{{API_BASE_URL}}/appointments/upcoming/24",
+              "method": "GET",
+              "headers": {
+                "Authorization": "Bearer {{API_TOKEN}}"
+              }
+            }
+          },
+          {
+            "id": "send_reminders",
+            "name": "Enviar Lembretes",
+            "type": "iterator",
+            "config": {
+              "data_source": "{{appointments}}",
+              "action": "send_reminder"
+            }
+          }
+        ]
+      },
+      {
+        "id": "send_reminder",
+        "name": "Enviar Lembrete Individual",
+        "type": "whatsapp",
+        "config": {
+          "phone_number": "{{item.client_phone}}",
+          "message": "⏰ Lembrete: Você tem agendamento amanhã às {{item.time}}\\n\\n🤔 Confirma que vai comparecer?\\n\\nResponda com:\\n✅ - Sim, vou comparecer\\n❌ - Não, preciso cancelar\\n🔄 - Quero remarcar",
+          "quick_replies": [
+            {
+              "id": "confirm_attendance",
+              "title": "✅ Sim, vou comparecer"
+            },
+            {
+              "id": "cancel_appointment",
+              "title": "❌ Não, preciso cancelar"
+            },
+            {
+              "id": "reschedule_appointment",
+              "title": "🔄 Quero remarcar"
+            }
+          ]
+        }
+      }
+    ],
+    "variables": {
+      "SUPERAGENTES_API_KEY": "{{SUPERAGENTES_API_KEY}}",
+      "SUPERAGENTES_WEBHOOK_URL": "{{SUPERAGENTES_WEBHOOK_URL}}",
+      "API_BASE_URL": "{{API_BASE_URL}}",
+      "API_TOKEN": "{{API_TOKEN}}",
+      "WHATSAPP_ACCESS_TOKEN": "{{WHATSAPP_ACCESS_TOKEN}}",
+      "WHATSAPP_PHONE_NUMBER_ID": "{{WHATSAPP_PHONE_NUMBER_ID}}"
+    },
+    "error_handling": {
+      "retry_attempts": 3,
+      "retry_delay": 5000,
+      "fallback_message": "Desculpe, estou com dificuldades técnicas. Pode tentar novamente em alguns instantes?"
+    },
+    "monitoring": {
+      "enabled": true,
+      "metrics": [
+        "messages_processed",
+        "appointments_created",
+        "appointments_cancelled",
+        "appointments_rescheduled",
+        "response_time",
+        "error_rate"
+      ],
+      "alerts": {
+        "error_threshold": 0.05,
+        "response_time_threshold": 5000
+      }
+    }
+  }
+}
