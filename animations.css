@@ -1,0 +1,464 @@
+/* Animações e Efeitos Visuais Extras */
+
+/* Animações de entrada para elementos */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes fadeInRight {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes slideInFromTop {
+    from {
+        opacity: 0;
+        transform: translateY(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Classes de animação */
+.animate-in {
+    animation: fadeInUp 0.8s ease forwards;
+}
+
+.animate-left {
+    animation: fadeInLeft 0.8s ease forwards;
+}
+
+.animate-right {
+    animation: fadeInRight 0.8s ease forwards;
+}
+
+.animate-scale {
+    animation: scaleIn 0.6s ease forwards;
+}
+
+.animate-top {
+    animation: slideInFromTop 0.6s ease forwards;
+}
+
+/* Efeitos de hover para cards */
+.service-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.service-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.1), transparent);
+    transition: left 0.5s ease;
+}
+
+.service-card:hover::before {
+    left: 100%;
+}
+
+/* Efeito de brilho para botões */
+.btn-primary {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-primary::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s ease;
+}
+
+.btn-primary:hover::before {
+    left: 100%;
+}
+
+/* Animações para estatísticas */
+.stat {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.6s ease;
+}
+
+.stat.animate-in {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.stat h4 {
+    transition: all 0.3s ease;
+}
+
+.stat:hover h4 {
+    transform: scale(1.1);
+    color: var(--secondary-color);
+}
+
+/* Efeitos para o hero */
+.hero-content h1 {
+    opacity: 0;
+    animation: fadeInUp 1s ease 0.3s forwards;
+}
+
+.hero-content p {
+    opacity: 0;
+    animation: fadeInUp 1s ease 0.6s forwards;
+}
+
+.hero-buttons {
+    opacity: 0;
+    animation: fadeInUp 1s ease 0.9s forwards;
+}
+
+/* Animações para cards flutuantes */
+.floating-card {
+    transition: all 0.3s ease;
+}
+
+.floating-card:hover {
+    transform: translateY(-10px) scale(1.05);
+    box-shadow: var(--shadow-xl);
+}
+
+/* Efeitos para o grid de ícones */
+.grid-item {
+    transition: all 0.3s ease;
+}
+
+.grid-item:hover {
+    transform: translateY(-5px) rotate(5deg);
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+}
+
+.grid-item:hover i {
+    color: white;
+    transform: scale(1.2);
+}
+
+/* Animações para produtos */
+.product-item {
+    opacity: 0;
+    transform: translateX(-50px);
+    transition: all 0.8s ease;
+}
+
+.product-item.reverse {
+    transform: translateX(50px);
+}
+
+.product-item.animate-in {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.product-image {
+    transition: all 0.3s ease;
+}
+
+.product-item:hover .product-image {
+    transform: scale(1.05);
+    box-shadow: var(--shadow-xl);
+}
+
+/* Efeitos para formulário */
+.form-group input,
+.form-group textarea {
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(37, 99, 235, 0.15);
+}
+
+/* Animações para footer */
+.footer-section {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.6s ease;
+}
+
+.footer-section.animate-in {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Efeitos de scroll para header */
+.header.scroll-down {
+    transform: translateY(-100%);
+}
+
+.header.scroll-up {
+    transform: translateY(0);
+}
+
+/* Animações para menu mobile */
+.nav-menu {
+    transition: all 0.3s ease;
+}
+
+.nav-menu.active {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    padding: 1rem;
+    box-shadow: var(--shadow-lg);
+    border-top: 1px solid var(--border-color);
+}
+
+/* Efeitos para links de navegação */
+.nav-menu a {
+    transition: all 0.3s ease;
+}
+
+.nav-menu a:hover {
+    transform: translateX(5px);
+}
+
+/* Animações para seções */
+section {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.8s ease;
+}
+
+section.animate-in {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Efeitos para ícones de contato */
+.contact-item i {
+    transition: all 0.3s ease;
+}
+
+.contact-item:hover i {
+    transform: scale(1.1) rotate(5deg);
+    background: var(--secondary-color);
+}
+
+/* Animações para redes sociais */
+.social-links a {
+    transition: all 0.3s ease;
+}
+
+.social-links a:hover {
+    transform: translateY(-3px) rotate(5deg);
+    box-shadow: var(--shadow-lg);
+}
+
+/* Efeitos de loading */
+.loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* Animações para scroll suave */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Efeitos para elementos com data-animation */
+[data-animation] {
+    opacity: 0;
+    transition: all 0.6s ease;
+}
+
+[data-animation="fadeInUp"] {
+    transform: translateY(30px);
+}
+
+[data-animation="fadeInLeft"] {
+    transform: translateX(-30px);
+}
+
+[data-animation="fadeInRight"] {
+    transform: translateX(30px);
+}
+
+[data-animation="scaleIn"] {
+    transform: scale(0.8);
+}
+
+[data-animation].animate-in {
+    opacity: 1;
+    transform: translate(0) scale(1);
+}
+
+/* Animações para elementos de destaque */
+.highlight {
+    position: relative;
+}
+
+.highlight::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: var(--accent-color);
+    transition: width 0.3s ease;
+}
+
+.highlight:hover::after {
+    width: 100%;
+}
+
+/* Efeitos para imagens de produtos */
+.product-image {
+    position: relative;
+    overflow: hidden;
+}
+
+.product-image::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.6s ease;
+}
+
+.product-item:hover .product-image::before {
+    transform: translateX(100%);
+}
+
+/* Animações para o logo */
+.logo h2 {
+    transition: all 0.3s ease;
+}
+
+.logo:hover h2 {
+    transform: scale(1.05);
+    text-shadow: 0 0 20px rgba(37, 99, 235, 0.3);
+}
+
+/* Efeitos para seções alternadas */
+.about:nth-child(even),
+.services:nth-child(even),
+.products:nth-child(even) {
+    background: var(--bg-secondary);
+}
+
+/* Animações para elementos de destaque */
+.feature-highlight {
+    position: relative;
+    padding: 2rem;
+    background: white;
+    border-radius: 1rem;
+    box-shadow: var(--shadow-md);
+    transition: all 0.3s ease;
+}
+
+.feature-highlight:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-xl);
+}
+
+.feature-highlight::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--primary-color);
+    border-radius: 0 2px 2px 0;
+}
+
+/* Responsividade para animações */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .floating-card {
+        animation: none;
+        position: relative;
+        margin: 1rem;
+    }
+    
+    .hero-visual {
+        height: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+}
